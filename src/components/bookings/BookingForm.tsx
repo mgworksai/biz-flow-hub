@@ -31,6 +31,8 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { Textarea } from "@/components/ui/textarea";
 import { BookingInput } from '@/hooks/useBookings';
+import { useCurrentBusinessId } from '@/hooks/useCurrentBusinessId';
+import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 const bookingFormSchema = z.object({
@@ -40,7 +42,6 @@ const bookingFormSchema = z.object({
   notes: z.string().optional(),
   starts_at: z.date({ required_error: "Start date is required" }),
   ends_at: z.date().optional(),
-  business_id: z.string().uuid().optional(),
 });
 
 type BookingFormValues = z.infer<typeof bookingFormSchema>;
@@ -78,6 +79,8 @@ const BookingForm: React.FC<BookingFormProps> = ({
   onCancel,
   isSubmitting = false,
 }) => {
+  const { businessId } = useCurrentBusinessId();
+  
   const form = useForm<BookingFormValues>({
     resolver: zodResolver(bookingFormSchema),
     defaultValues: {
@@ -87,21 +90,29 @@ const BookingForm: React.FC<BookingFormProps> = ({
       notes: initialData.notes || "",
       starts_at: initialData.starts_at ? new Date(initialData.starts_at) : undefined,
       ends_at: initialData.ends_at ? new Date(initialData.ends_at) : undefined,
-      business_id: initialData.business_id || undefined,
     },
   });
 
   const handleSubmit = async (values: BookingFormValues) => {
     try {
+      if (!businessId) {
+        toast({
+          title: "Error",
+          description: "No business context; please refresh or log in again.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
       // Convert dates to ISO strings for the API
-      const bookingData: BookingInput = {
+      const bookingData: BookingInput & { business_id: string } = {
         customer_name: values.customer_name,
         service: values.service,
         status: values.status,
         notes: values.notes,
         starts_at: values.starts_at.toISOString(),
         ends_at: values.ends_at ? values.ends_at.toISOString() : undefined,
-        business_id: values.business_id,
+        business_id: businessId,
       };
       
       await onSubmit(bookingData);
@@ -282,7 +293,7 @@ const BookingForm: React.FC<BookingFormProps> = ({
           <Button variant="outline" type="button" onClick={onCancel}>
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting || !businessId}>
             {isSubmitting ? "Saving..." : initialData.id ? "Update Booking" : "Create Booking"}
           </Button>
         </div>

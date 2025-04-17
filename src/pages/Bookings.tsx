@@ -1,8 +1,8 @@
-
 import React, { useState } from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import { Calendar, Plus, Filter, ChevronLeft, ChevronRight, MoreHorizontal, Trash2, Edit } from 'lucide-react';
 import { useBookings, Booking, BookingInput } from '@/hooks/useBookings';
+import { useCurrentBusinessId } from '@/hooks/useCurrentBusinessId';
 import BookingForm from '@/components/bookings/BookingForm';
 import { format, addDays, startOfWeek, isWithinInterval, parseISO } from 'date-fns';
 import { useAuth } from '@/context/AuthContext';
@@ -27,6 +27,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from '@/hooks/use-toast';
+import { Navigate } from 'react-router-dom';
 
 const timeSlots = [
   '8:00 AM', '8:30 AM', '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM',
@@ -38,6 +40,7 @@ const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
 
 const Bookings: React.FC = () => {
   const { user } = useAuth();
+  const { businessId, loading: loadingBusinessId } = useCurrentBusinessId();
   const [view, setView] = useState<'list' | 'calendar'>('calendar');
   const [currentWeek, setCurrentWeek] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [isCreating, setIsCreating] = useState(false);
@@ -48,7 +51,31 @@ const Bookings: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
 
   // Use the hook to fetch and manage bookings
-  const { bookings, loading, createBooking, updateBooking, deleteBooking } = useBookings();
+  const { bookings, loading: loadingBookings, createBookingWithBusinessId, updateBooking, deleteBooking } = useBookings(businessId || undefined);
+  
+  const loading = loadingBusinessId || loadingBookings;
+
+  // Redirect if not authenticated
+  if (!user) {
+    return <Navigate to="/login" />;
+  }
+
+  // Show a message if no business context
+  if (!loadingBusinessId && !businessId) {
+    return (
+      <DashboardLayout>
+        <div className="dashboard-container">
+          <div className="dashboard-card p-6">
+            <h2 className="text-xl font-semibold text-center mb-2">Business Profile Missing</h2>
+            <p className="text-center text-gray-600">
+              Your account isn't linked to a business. Please contact your administrator
+              or update your profile with a business ID.
+            </p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   const formattedWeek = `${format(currentWeek, 'MMM d')} - ${format(addDays(currentWeek, 6), 'MMM d, yyyy')}`;
 
@@ -94,12 +121,24 @@ const Bookings: React.FC = () => {
   };
 
   const handleSubmitBooking = async (data: BookingInput) => {
+    if (!businessId) {
+      toast({
+        title: "Error",
+        description: "No business context; please refresh or log in again.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     setSubmitting(true);
     try {
       if (currentBooking) {
         await updateBooking(currentBooking.id, data);
       } else {
-        await createBooking(data);
+        await createBookingWithBusinessId({
+          ...data,
+          business_id: businessId
+        });
       }
       handleCloseModals();
     } catch (error) {
@@ -142,7 +181,6 @@ const Bookings: React.FC = () => {
     return format(eventDate, 'h:mm a');
   };
 
-  // Filter bookings for the current week view
   const currentWeekBookings = bookings.filter(booking => 
     booking.starts_at && isEventInCurrentWeek(booking.starts_at)
   );
@@ -153,7 +191,7 @@ const Bookings: React.FC = () => {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
           <h1 className="text-2xl font-bold">Bookings</h1>
           <div className="flex space-x-3 mt-2 sm:mt-0">
-            <Button onClick={handleCreateBooking}>
+            <Button onClick={handleCreateBooking} disabled={!businessId}>
               <Plus size={16} className="mr-2" />
               New Booking
             </Button>
@@ -323,7 +361,6 @@ const Bookings: React.FC = () => {
         )}
       </div>
 
-      {/* Booking Creation/Edit Dialog */}
       <Dialog open={isCreating || isEditing} onOpenChange={handleCloseModals}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
@@ -338,7 +375,6 @@ const Bookings: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

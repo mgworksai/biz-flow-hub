@@ -12,7 +12,7 @@ export type Booking = {
   starts_at: string;
   ends_at?: string;
   created_at: string;
-  business_id?: string;
+  business_id: string;
 };
 
 export type BookingInput = {
@@ -31,6 +31,11 @@ export function useBookings(businessId?: string) {
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
+    if (!businessId) {
+      setLoading(false);
+      return;
+    }
+    
     setLoading(true);
     
     // Set up initial data fetch
@@ -118,6 +123,28 @@ export function useBookings(businessId?: string) {
     }
   };
 
+  // Add this overload for createBooking that requires business_id
+  const createBookingWithBusinessId = async (
+    input: Omit<BookingInput, "business_id"> & { business_id: string }
+  ): Promise<void> => {
+    try {
+      const { error } = await supabase.from("bookings").insert([input]);
+      if (error) throw error;
+      
+      toast({
+        title: "Booking created",
+        description: "The booking has been created successfully.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Error creating booking",
+        description: err.message,
+        variant: "destructive"
+      });
+      throw err;
+    }
+  };
+
   const updateBooking = async (id: string, updates: Partial<BookingInput>): Promise<Booking> => {
     try {
       const { data, error } = await supabase
@@ -173,6 +200,7 @@ export function useBookings(businessId?: string) {
     loading,
     error,
     createBooking,
+    createBookingWithBusinessId,
     updateBooking,
     deleteBooking
   };

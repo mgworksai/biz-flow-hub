@@ -17,6 +17,7 @@ export type Database = {
           ends_at: string | null
           id: string
           notes: string | null
+          service: string | null
           starts_at: string | null
           status: string | null
         }
@@ -27,6 +28,7 @@ export type Database = {
           ends_at?: string | null
           id?: string
           notes?: string | null
+          service?: string | null
           starts_at?: string | null
           status?: string | null
         }
@@ -37,6 +39,7 @@ export type Database = {
           ends_at?: string | null
           id?: string
           notes?: string | null
+          service?: string | null
           starts_at?: string | null
           status?: string | null
         }
