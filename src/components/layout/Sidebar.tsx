@@ -12,7 +12,9 @@ import {
   Settings, 
   LogOut,
   ChevronsLeft,
-  ChevronsRight
+  ChevronsRight,
+  Mic,
+  Globe
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -23,10 +25,12 @@ const navigation = [
   { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
   { name: 'Bookings', icon: Calendar, path: '/bookings' },
   { name: 'Customers', icon: Users, path: '/customers' },
-  { name: 'Invoices', icon: FileText, path: '/invoices' },
+  { name: 'Invoices', icon: FileText, path: '/invoicing' },
   { name: 'Support', icon: TicketCheck, path: '/support' },
   { name: 'Analytics', icon: BarChart3, path: '/analytics' },
   { name: 'Marketing', icon: Megaphone, path: '/marketing' },
+  { name: 'Voice Assistant', icon: Mic, path: '/voice-assistant' },
+  { name: 'Customer Portal', icon: Globe, path: '/portal' },
   { name: 'Settings', icon: Settings, path: '/settings' },
 ];
 
