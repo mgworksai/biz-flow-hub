@@ -1,13 +1,15 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import { 
   Download, 
   Plus, 
-  FileText,
-  Edit,
-  Trash,
-  CreditCard
+  CreditCard,
+  Check,
+  Clock,
+  Ban,
+  ExternalLink
 } from 'lucide-react';
 import { 
   Table, 
@@ -19,75 +21,119 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import InvoiceForm from '../components/invoicing/InvoiceForm';
-
-// Mock invoice data for UI development
-const mockInvoices = [
-  { 
-    id: 'INV-001', 
-    customer: 'John Doe', 
-    amount: '$199.99', 
-    status: 'Pending', 
-    dueDate: '2025-05-01' 
-  },
-  { 
-    id: 'INV-002', 
-    customer: 'Jane Smith', 
-    amount: '$299.99', 
-    status: 'Paid', 
-    dueDate: '2025-04-15' 
-  },
-  { 
-    id: 'INV-003', 
-    customer: 'Robert Johnson', 
-    amount: '$99.99', 
-    status: 'Overdue', 
-    dueDate: '2025-04-10' 
-  },
-  { 
-    id: 'INV-004', 
-    customer: 'Emily Williams', 
-    amount: '$149.99', 
-    status: 'Pending', 
-    dueDate: '2025-05-10' 
-  },
-  { 
-    id: 'INV-005', 
-    customer: 'Michael Brown', 
-    amount: '$499.99', 
-    status: 'Paid', 
-    dueDate: '2025-04-20' 
-  }
-];
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
+import InvoiceForm from '@/components/invoices/InvoiceForm';
+import { useInvoices } from '@/hooks/useInvoices';
+import { useCustomers } from '@/hooks/useCustomers';
+import { useCurrentBusinessId } from '@/hooks/useCurrentBusinessId';
 
 const getStatusBadgeClass = (status: string) => {
   switch (status.toLowerCase()) {
-    case 'pending':
-      return 'bg-yellow-100 text-yellow-800'; // Pending: Yellow #FBBF24
+    case 'draft':
+      return 'bg-gray-100 text-gray-800 border-gray-200';
+    case 'sent':
+      return 'bg-yellow-100 text-yellow-800 border-yellow-200';
     case 'paid':
-      return 'bg-green-100 text-green-800'; // Paid: Green #10B981
+      return 'bg-green-100 text-green-800 border-green-200';
     case 'overdue':
-      return 'bg-red-100 text-red-800'; // Overdue: Red #EF4444
+      return 'bg-red-100 text-red-800 border-red-200';
     default:
-      return 'bg-gray-100 text-gray-800';
+      return 'bg-gray-100 text-gray-800 border-gray-200';
+  }
+};
+
+const getStatusIcon = (status: string) => {
+  switch (status.toLowerCase()) {
+    case 'draft':
+      return <Clock size={14} />;
+    case 'sent':
+      return <ExternalLink size={14} />;
+    case 'paid':
+      return <Check size={14} />;
+    case 'overdue':
+      return <Ban size={14} />;
+    default:
+      return <Clock size={14} />;
   }
 };
 
 const Invoicing: React.FC = () => {
+  const location = useLocation();
+  const { businessId } = useCurrentBusinessId();
+  const { toast } = useToast();
+  const { invoices, createInvoice, sendInvoice } = useInvoices(businessId);
+  const { customers } = useCustomers(businessId);
+  
   const [showInvoiceForm, setShowInvoiceForm] = useState(false);
 
-  const toggleInvoiceForm = () => {
-    setShowInvoiceForm(!showInvoiceForm);
+  // Check for success or cancelled status from URL
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    if (searchParams.get('success') === 'true') {
+      toast({
+        title: "Payment successful",
+        description: "The invoice has been marked as paid.",
+      });
+      // Remove query params
+      window.history.replaceState({}, '', location.pathname);
+    } else if (searchParams.get('cancelled') === 'true') {
+      toast({
+        title: "Payment cancelled",
+        description: "The customer cancelled the payment process.",
+        variant: "destructive"
+      });
+      // Remove query params
+      window.history.replaceState({}, '', location.pathname);
+    }
+  }, [location, toast]);
+
+  const handleCreateInvoice = async (values: {
+    customer_id: string;
+    amount_cents: number;
+    due_date?: string;
+  }) => {
+    if (!businessId) {
+      toast({
+        title: "Error",
+        description: "Business ID not found. Please try again or contact support.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    try {
+      await createInvoice({
+        ...values,
+        business_id: businessId,
+        status: 'draft'
+      });
+      setShowInvoiceForm(false);
+    } catch (error) {
+      // Error already handled in the hook
+    }
   };
 
-  const handlePayNow = (invoiceId: string) => {
-    console.log(`Process payment for invoice ${invoiceId}`);
-    // This will be replaced with Stripe integration
+  const handleSendInvoice = async (invoiceId: string) => {
+    try {
+      const url = await sendInvoice(invoiceId);
+      window.open(url, '_blank');
+    } catch (error) {
+      // Error already handled in the hook
+    }
   };
 
-  const handleDownloadPDF = (invoiceId: string) => {
-    console.log(`Download PDF for invoice ${invoiceId}`);
-    // This will be replaced with PDF generation
+  const formatCurrency = (cents: number, currency = 'USD') => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency
+    }).format(cents / 100);
   };
 
   return (
@@ -95,26 +141,18 @@ const Invoicing: React.FC = () => {
       <div className="dashboard-container">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">Invoicing</h1>
-          <Button onClick={toggleInvoiceForm} className="flex items-center gap-2">
+          <Button onClick={() => setShowInvoiceForm(true)} className="flex items-center gap-2">
             <Plus size={16} />
             <span>Create Invoice</span>
           </Button>
         </div>
 
-        {showInvoiceForm ? (
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Create New Invoice</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <InvoiceForm onCancel={toggleInvoiceForm} />
-            </CardContent>
-          </Card>
-        ) : null}
-
         <Card>
+          <CardHeader>
+            <CardTitle>Invoices</CardTitle>
+          </CardHeader>
           <CardContent className="p-0">
-            <div className="table-container">
+            <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -123,57 +161,96 @@ const Invoicing: React.FC = () => {
                     <TableHead>Amount</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Due Date</TableHead>
+                    <TableHead>Created</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {mockInvoices.map((invoice) => (
-                    <TableRow key={invoice.id}>
-                      <TableCell>{invoice.id}</TableCell>
-                      <TableCell>{invoice.customer}</TableCell>
-                      <TableCell>{invoice.amount}</TableCell>
-                      <TableCell>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeClass(invoice.status)}`}>
-                          {invoice.status}
-                        </span>
-                      </TableCell>
-                      <TableCell>{invoice.dueDate}</TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="text-gray-500"
-                            onClick={() => handleDownloadPDF(invoice.id)}
-                          >
-                            <Download size={16} />
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            className="text-gray-500"
-                          >
-                            <Edit size={16} />
-                          </Button>
-                          {invoice.status === 'Pending' && (
-                            <Button 
-                              size="sm" 
-                              className="bg-primary text-white"
-                              onClick={() => handlePayNow(invoice.id)}
-                            >
-                              <CreditCard size={16} className="mr-1" />
-                              Pay Now
-                            </Button>
-                          )}
-                        </div>
+                  {invoices.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-10 text-gray-500">
+                        No invoices found. Create your first invoice to get started.
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    invoices.map((invoice) => (
+                      <TableRow key={invoice.id}>
+                        <TableCell className="font-medium">
+                          {invoice.id.substring(0, 8)}
+                        </TableCell>
+                        <TableCell>
+                          {invoice.customers?.full_name || '—'}
+                        </TableCell>
+                        <TableCell>
+                          {formatCurrency(invoice.amount_cents, invoice.currency)}
+                        </TableCell>
+                        <TableCell>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium flex items-center w-fit gap-1 border ${getStatusBadgeClass(invoice.status)}`}>
+                            {getStatusIcon(invoice.status)}
+                            {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          {invoice.due_date 
+                            ? format(new Date(invoice.due_date), 'MMM dd, yyyy')
+                            : '—'}
+                        </TableCell>
+                        <TableCell>
+                          {format(new Date(invoice.created_at), 'MMM dd, yyyy')}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex space-x-2">
+                            {invoice.status === 'draft' && (
+                              <Button 
+                                size="sm" 
+                                onClick={() => handleSendInvoice(invoice.id)}
+                              >
+                                <CreditCard size={16} className="mr-1" />
+                                Send
+                              </Button>
+                            )}
+                            {invoice.status === 'sent' && invoice.stripe_checkout_url && (
+                              <Button 
+                                size="sm" 
+                                onClick={() => window.open(invoice.stripe_checkout_url, '_blank')}
+                              >
+                                <ExternalLink size={16} className="mr-1" />
+                                View
+                              </Button>
+                            )}
+                            {invoice.pdf_url && (
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => window.open(invoice.pdf_url, '_blank')}
+                              >
+                                <Download size={16} />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </div>
           </CardContent>
         </Card>
+
+        {/* Create Invoice Dialog */}
+        <Dialog open={showInvoiceForm} onOpenChange={setShowInvoiceForm}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create New Invoice</DialogTitle>
+            </DialogHeader>
+            <InvoiceForm 
+              onSubmit={handleCreateInvoice} 
+              onCancel={() => setShowInvoiceForm(false)}
+              customers={customers}
+            />
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

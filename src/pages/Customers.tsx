@@ -1,175 +1,248 @@
 
 import React, { useState } from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
-import { Plus, Search, Filter, Phone, Mail, MapPin, Edit, Trash, UserPlus } from 'lucide-react';
-
-// Mock data for customers
-const customers = [
-  { id: 1, name: 'Sarah Johnson', email: 'sarah.j@example.com', phone: '(555) 123-4567', location: 'New York, NY', status: 'active', lastBooking: '2 days ago' },
-  { id: 2, name: 'Michael Brown', email: 'michael.b@example.com', phone: '(555) 234-5678', location: 'Los Angeles, CA', status: 'active', lastBooking: '1 week ago' },
-  { id: 3, name: 'Emily Davis', email: 'emily.d@example.com', phone: '(555) 345-6789', location: 'Chicago, IL', status: 'inactive', lastBooking: '3 weeks ago' },
-  { id: 4, name: 'Robert Wilson', email: 'robert.w@example.com', phone: '(555) 456-7890', location: 'Houston, TX', status: 'active', lastBooking: '5 days ago' },
-  { id: 5, name: 'Jennifer Lee', email: 'jennifer.l@example.com', phone: '(555) 567-8901', location: 'Phoenix, AZ', status: 'active', lastBooking: 'Yesterday' },
-  { id: 6, name: 'David Miller', email: 'david.m@example.com', phone: '(555) 678-9012', location: 'Philadelphia, PA', status: 'inactive', lastBooking: '2 months ago' },
-];
+import { Plus, Search, Edit, Trash, Mail, Phone } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import CustomerForm from '@/components/customers/CustomerForm';
+import { Customer, useCustomers } from '@/hooks/useCustomers';
+import { useCurrentBusinessId } from '@/hooks/useCurrentBusinessId';
+import { toast } from '@/hooks/use-toast';
 
 const Customers = () => {
+  const { businessId } = useCurrentBusinessId();
+  const { customers, createCustomer, updateCustomer, deleteCustomer } = useCustomers(businessId);
+  
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCustomer, setSelectedCustomer] = useState<number | null>(null);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
   const filteredCustomers = customers.filter(customer => 
-    customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.phone.includes(searchTerm)
+    customer.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (customer.email && customer.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (customer.phone && customer.phone.includes(searchTerm))
   );
 
-  const customer = customers.find(c => c.id === selectedCustomer);
+  const handleAddCustomer = async (formData: any) => {
+    if (!businessId) {
+      toast({
+        title: "Error",
+        description: "Business ID not found",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    try {
+      await createCustomer({
+        ...formData,
+        business_id: businessId
+      });
+      setIsAddDialogOpen(false);
+    } catch (error) {
+      // Error already handled in the hook
+    }
+  };
+
+  const handleEditCustomer = async (formData: any) => {
+    if (!selectedCustomer) return;
+    
+    try {
+      await updateCustomer(selectedCustomer.id, formData);
+      setIsEditDialogOpen(false);
+      setSelectedCustomer(null);
+    } catch (error) {
+      // Error already handled in the hook
+    }
+  };
+
+  const handleDeleteCustomer = async (id: string) => {
+    if (confirm('Are you sure you want to delete this customer?')) {
+      try {
+        await deleteCustomer(id);
+      } catch (error) {
+        // Error already handled in the hook
+      }
+    }
+  };
 
   return (
     <DashboardLayout>
       <div className="dashboard-container">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
-          <h1>Customers</h1>
-          <button className="inline-flex items-center px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium mt-2 sm:mt-0">
-            <UserPlus size={16} className="mr-2" />
+          <h1 className="text-2xl font-bold">Customers</h1>
+          <Button 
+            onClick={() => setIsAddDialogOpen(true)} 
+            className="mt-2 sm:mt-0"
+          >
+            <Plus size={16} className="mr-2" />
             Add Customer
-          </button>
+          </Button>
         </div>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Customer List */}
-          <div className="lg:col-span-2 dashboard-card">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 space-y-2 sm:space-y-0">
-              <h2>Customer Directory</h2>
-              <div className="flex w-full sm:w-auto space-x-2">
-                <div className="relative flex-1 sm:flex-initial">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                  <input
-                    type="text"
-                    placeholder="Search customers..."
-                    className="form-input pl-10"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-                <button className="flex items-center text-sm text-gray-600 border rounded-md px-3 py-2">
-                  <Filter size={16} className="mr-1" />
-                  Filter
-                </button>
+
+        <Card>
+          <CardHeader className="pb-0">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-2 sm:space-y-0">
+              <CardTitle>Customer Directory</CardTitle>
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                <Input
+                  type="text"
+                  placeholder="Search customers..."
+                  className="pl-10"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
               </div>
             </div>
-            
-            <div className="table-container">
-              <table className="table-base">
-                <thead className="table-header">
-                  <tr>
-                    <th className="table-head">Name</th>
-                    <th className="table-head">Email</th>
-                    <th className="table-head">Phone</th>
-                    <th className="table-head">Status</th>
-                    <th className="table-head">Last Booking</th>
-                  </tr>
-                </thead>
-                <tbody className="table-body">
-                  {filteredCustomers.map((customer) => (
-                    <tr
-                      key={customer.id}
-                      className={`table-row cursor-pointer ${selectedCustomer === customer.id ? 'bg-primary/5' : ''}`}
-                      onClick={() => setSelectedCustomer(customer.id)}
-                    >
-                      <td className="table-cell font-medium">{customer.name}</td>
-                      <td className="table-cell">{customer.email}</td>
-                      <td className="table-cell">{customer.phone}</td>
-                      <td className="table-cell">
-                        <span className={customer.status === 'active' ? 'status-success' : 'status-pending'}>
-                          {customer.status === 'active' ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td className="table-cell text-gray-500">{customer.lastBooking}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Notes</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredCustomers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-6 text-gray-500">
+                        {customers.length === 0 
+                          ? "No customers found. Add your first customer to get started." 
+                          : "No customers match your search criteria."}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredCustomers.map((customer) => (
+                      <TableRow key={customer.id}>
+                        <TableCell className="font-medium">{customer.full_name}</TableCell>
+                        <TableCell>
+                          {customer.email ? (
+                            <a href={`mailto:${customer.email}`} className="flex items-center text-primary hover:underline">
+                              <Mail size={14} className="mr-1" />
+                              {customer.email}
+                            </a>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {customer.phone ? (
+                            <a href={`tel:${customer.phone}`} className="flex items-center text-primary hover:underline">
+                              <Phone size={14} className="mr-1" />
+                              {customer.phone}
+                            </a>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="max-w-xs truncate">
+                          {customer.notes || <span className="text-gray-400">—</span>}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                Actions
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedCustomer(customer);
+                                  setIsEditDialogOpen(true);
+                                }}
+                              >
+                                <Edit size={14} className="mr-2" />
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleDeleteCustomer(customer.id)}
+                                className="text-red-600"
+                              >
+                                <Trash size={14} className="mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
             </div>
-          </div>
-          
-          {/* Customer Details */}
-          <div className="dashboard-card">
-            {selectedCustomer ? (
-              <>
-                <div className="flex justify-between items-start mb-6">
-                  <h2>Customer Details</h2>
-                  <div className="flex space-x-2">
-                    <button className="p-1 rounded-md hover:bg-gray-100">
-                      <Edit size={18} className="text-gray-500" />
-                    </button>
-                    <button className="p-1 rounded-md hover:bg-gray-100">
-                      <Trash size={18} className="text-gray-500" />
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="flex flex-col items-center mb-6">
-                  <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-3">
-                    <span className="text-2xl font-bold">{customer?.name.charAt(0)}</span>
-                  </div>
-                  <h3 className="text-xl font-semibold">{customer?.name}</h3>
-                  <span className={`text-xs mt-1 ${customer?.status === 'active' ? 'status-success' : 'status-pending'}`}>
-                    {customer?.status === 'active' ? 'Active Customer' : 'Inactive Customer'}
-                  </span>
-                </div>
-                
-                <div className="space-y-4">
-                  <div className="flex items-start">
-                    <Mail size={18} className="mr-3 text-gray-500 mt-0.5" />
-                    <div>
-                      <p className="text-sm text-gray-500">Email</p>
-                      <p>{customer?.email}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start">
-                    <Phone size={18} className="mr-3 text-gray-500 mt-0.5" />
-                    <div>
-                      <p className="text-sm text-gray-500">Phone</p>
-                      <p>{customer?.phone}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start">
-                    <MapPin size={18} className="mr-3 text-gray-500 mt-0.5" />
-                    <div>
-                      <p className="text-sm text-gray-500">Location</p>
-                      <p>{customer?.location}</p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="mt-6 pt-6 border-t">
-                  <h3 className="text-sm font-medium mb-3">Recent Activity</h3>
-                  <div className="space-y-3">
-                    <div className="p-3 rounded-md bg-gray-50">
-                      <p className="text-sm font-medium">Booking Completed</p>
-                      <p className="text-xs text-gray-500">Haircut - April 15, 2025</p>
-                    </div>
-                    <div className="p-3 rounded-md bg-gray-50">
-                      <p className="text-sm font-medium">Invoice #1084 Paid</p>
-                      <p className="text-xs text-gray-500">$45.00 - April 15, 2025</p>
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-center p-6">
-                <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-                  <Plus size={24} className="text-gray-400" />
-                </div>
-                <h3 className="text-lg font-medium mb-2">No Customer Selected</h3>
-                <p className="text-gray-500 text-sm">Select a customer from the list to view their details</p>
-              </div>
+          </CardContent>
+        </Card>
+
+        {/* Add Customer Dialog */}
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add New Customer</DialogTitle>
+            </DialogHeader>
+            <CustomerForm 
+              onSubmit={handleAddCustomer} 
+              onCancel={() => setIsAddDialogOpen(false)} 
+            />
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Customer Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Customer</DialogTitle>
+            </DialogHeader>
+            {selectedCustomer && (
+              <CustomerForm 
+                onSubmit={handleEditCustomer} 
+                onCancel={() => {
+                  setIsEditDialogOpen(false);
+                  setSelectedCustomer(null);
+                }} 
+                defaultValues={{
+                  full_name: selectedCustomer.full_name,
+                  email: selectedCustomer.email,
+                  phone: selectedCustomer.phone,
+                  notes: selectedCustomer.notes
+                }}
+              />
             )}
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
