@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 import { 
   LayoutDashboard, 
   Calendar, 
@@ -11,8 +12,6 @@ import {
   Megaphone, 
   Settings, 
   LogOut,
-  ChevronsLeft,
-  ChevronsRight,
   Mic,
   Globe
 } from 'lucide-react';
@@ -37,9 +36,14 @@ const navigation = [
 const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { signOut } = useAuth();
 
   const handleNavigation = (path: string) => {
     navigate(path);
+  };
+
+  const handleLogout = () => {
+    signOut();
   };
 
   return (
@@ -79,7 +83,10 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
       </div>
       
       <div className="absolute bottom-4 w-full px-4">
-        <button className="flex items-center w-full py-2 px-3 rounded-md text-gray-600 hover:bg-gray-100 transition-colors">
+        <button 
+          className="flex items-center w-full py-2 px-3 rounded-md text-gray-600 hover:bg-gray-100 transition-colors"
+          onClick={handleLogout}
+        >
           <LogOut size={20} className={collapsed ? 'mx-auto' : 'mr-3'} />
           {!collapsed && <span>Logout</span>}
         </button>

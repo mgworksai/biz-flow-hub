@@ -1,16 +1,32 @@
 
 import React, { useState } from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
-import { Calendar, Plus, Filter, ChevronLeft, ChevronRight, MoreHorizontal } from 'lucide-react';
-
-// Mock data for upcoming bookings
-const upcomingBookings = [
-  { id: 1, client: 'Sarah Johnson', service: 'Haircut', date: '2025-04-18', time: '10:00 AM', status: 'confirmed' },
-  { id: 2, client: 'Michael Brown', service: 'Beard Trim', date: '2025-04-18', time: '11:30 AM', status: 'confirmed' },
-  { id: 3, client: 'Emily Davis', service: 'Lawn Mowing', date: '2025-04-19', time: '09:00 AM', status: 'pending' },
-  { id: 4, client: 'Robert Wilson', service: 'Dog Walking', date: '2025-04-20', time: '03:00 PM', status: 'confirmed' },
-  { id: 5, client: 'Jennifer Lee', service: 'House Cleaning', date: '2025-04-21', time: '01:00 PM', status: 'pending' },
-];
+import { Calendar, Plus, Filter, ChevronLeft, ChevronRight, MoreHorizontal, Trash2, Edit } from 'lucide-react';
+import { useBookings, Booking, BookingInput } from '@/hooks/useBookings';
+import BookingForm from '@/components/bookings/BookingForm';
+import { format, addDays, startOfWeek, isWithinInterval, parseISO } from 'date-fns';
+import { useAuth } from '@/context/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const timeSlots = [
   '8:00 AM', '8:30 AM', '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM',
@@ -20,29 +36,127 @@ const timeSlots = [
 
 const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-// Mock data for weekly calendar
-const calendarEvents = [
-  { id: 1, client: 'Sarah Johnson', service: 'Haircut', day: 'Monday', time: '10:00 AM', duration: 30 },
-  { id: 2, client: 'Michael Brown', service: 'Beard Trim', day: 'Monday', time: '11:30 AM', duration: 30 },
-  { id: 3, client: 'Emily Davis', service: 'Lawn Mowing', day: 'Wednesday', time: '09:00 AM', duration: 60 },
-  { id: 4, client: 'Robert Wilson', service: 'Dog Walking', day: 'Thursday', time: '03:00 PM', duration: 60 },
-  { id: 5, client: 'Jennifer Lee', service: 'House Cleaning', day: 'Friday', time: '01:00 PM', duration: 120 },
-];
-
-const Bookings = () => {
+const Bookings: React.FC = () => {
+  const { user } = useAuth();
   const [view, setView] = useState<'list' | 'calendar'>('calendar');
-  const [currentWeek, setCurrentWeek] = useState('April 17 - 23, 2025');
+  const [currentWeek, setCurrentWeek] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const [isCreating, setIsCreating] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [currentBooking, setCurrentBooking] = useState<Booking | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [bookingToDelete, setBookingToDelete] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Use the hook to fetch and manage bookings
+  const { bookings, loading, createBooking, updateBooking, deleteBooking } = useBookings();
+
+  const formattedWeek = `${format(currentWeek, 'MMM d')} - ${format(addDays(currentWeek, 6), 'MMM d, yyyy')}`;
+
+  const handlePreviousWeek = () => {
+    setCurrentWeek(prev => addDays(prev, -7));
+  };
+
+  const handleNextWeek = () => {
+    setCurrentWeek(prev => addDays(prev, 7));
+  };
+
+  const handleCreateBooking = () => {
+    setCurrentBooking(null);
+    setIsCreating(true);
+  };
+
+  const handleEditBooking = (booking: Booking) => {
+    setCurrentBooking(booking);
+    setIsEditing(true);
+  };
+
+  const handleCloseModals = () => {
+    setIsCreating(false);
+    setIsEditing(false);
+    setCurrentBooking(null);
+  };
+
+  const confirmDeleteBooking = (id: string) => {
+    setBookingToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteBooking = async () => {
+    if (bookingToDelete) {
+      try {
+        await deleteBooking(bookingToDelete);
+        setDeleteDialogOpen(false);
+        setBookingToDelete(null);
+      } catch (error) {
+        console.error("Error deleting booking:", error);
+      }
+    }
+  };
+
+  const handleSubmitBooking = async (data: BookingInput) => {
+    setSubmitting(true);
+    try {
+      if (currentBooking) {
+        await updateBooking(currentBooking.id, data);
+      } else {
+        await createBooking(data);
+      }
+      handleCloseModals();
+    } catch (error) {
+      console.error("Error submitting booking:", error);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'confirmed':
+        return <Badge className="bg-green-500">Confirmed</Badge>;
+      case 'pending':
+        return <Badge className="bg-yellow-500">Pending</Badge>;
+      case 'cancelled':
+        return <Badge className="bg-red-500">Cancelled</Badge>;
+      case 'completed':
+        return <Badge className="bg-blue-500">Completed</Badge>;
+      default:
+        return <Badge>Scheduled</Badge>;
+    }
+  };
+
+  const isEventInCurrentWeek = (date: string) => {
+    const eventDate = parseISO(date);
+    const weekStart = currentWeek;
+    const weekEnd = addDays(weekStart, 6);
+    
+    return isWithinInterval(eventDate, { start: weekStart, end: weekEnd });
+  };
+
+  const getDayFromDate = (date: string) => {
+    const eventDate = parseISO(date);
+    return days[eventDate.getDay() === 0 ? 6 : eventDate.getDay() - 1]; // Adjust for Monday start
+  };
+
+  const getTimeFromDate = (date: string) => {
+    const eventDate = parseISO(date);
+    return format(eventDate, 'h:mm a');
+  };
+
+  // Filter bookings for the current week view
+  const currentWeekBookings = bookings.filter(booking => 
+    booking.starts_at && isEventInCurrentWeek(booking.starts_at)
+  );
 
   return (
     <DashboardLayout>
       <div className="dashboard-container">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
-          <h1>Bookings</h1>
+          <h1 className="text-2xl font-bold">Bookings</h1>
           <div className="flex space-x-3 mt-2 sm:mt-0">
-            <button className="inline-flex items-center px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium">
+            <Button onClick={handleCreateBooking}>
               <Plus size={16} className="mr-2" />
               New Booking
-            </button>
+            </Button>
             <div className="flex border rounded-md overflow-hidden">
               <button 
                 className={`px-3 py-2 text-sm ${view === 'list' ? 'bg-primary text-primary-foreground' : 'bg-white text-gray-600'}`}
@@ -60,66 +174,101 @@ const Bookings = () => {
           </div>
         </div>
         
-        {view === 'list' ? (
+        {loading ? (
+          <div className="dashboard-card p-6">
+            <div className="space-y-4">
+              <Skeleton className="h-8 w-1/3" />
+              <div className="space-y-2">
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <Skeleton key={index} className="h-12 w-full" />
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : view === 'list' ? (
           <div className="dashboard-card">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="flex items-center">
+            <div className="flex justify-between items-center mb-4 p-4">
+              <h2 className="flex items-center text-lg font-semibold">
                 <Calendar size={20} className="mr-2 text-primary" />
                 Upcoming Bookings
               </h2>
-              <button className="flex items-center text-sm text-gray-600">
+              <Button variant="outline" size="sm">
                 <Filter size={16} className="mr-1" />
                 Filter
-              </button>
+              </Button>
             </div>
             
-            <div className="table-container">
-              <table className="table-base">
-                <thead className="table-header">
-                  <tr>
-                    <th className="table-head">Client</th>
-                    <th className="table-head">Service</th>
-                    <th className="table-head">Date</th>
-                    <th className="table-head">Time</th>
-                    <th className="table-head">Status</th>
-                    <th className="table-head">Actions</th>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="px-4 py-2 text-left font-medium text-gray-600">Client</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-600">Service</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-600">Date</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-600">Time</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-600">Status</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-600">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="table-body">
-                  {upcomingBookings.map((booking) => (
-                    <tr key={booking.id} className="table-row">
-                      <td className="table-cell font-medium">{booking.client}</td>
-                      <td className="table-cell">{booking.service}</td>
-                      <td className="table-cell">{booking.date}</td>
-                      <td className="table-cell">{booking.time}</td>
-                      <td className="table-cell">
-                        <span className={booking.status === 'confirmed' ? 'status-success' : 'status-pending'}>
-                          {booking.status === 'confirmed' ? 'Confirmed' : 'Pending'}
-                        </span>
-                      </td>
-                      <td className="table-cell">
-                        <button className="text-gray-500 hover:text-primary">
-                          <MoreHorizontal size={18} />
-                        </button>
+                <tbody>
+                  {bookings.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-4 text-center text-gray-500">
+                        No bookings found. Create a new booking to get started.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    bookings.map((booking) => (
+                      <tr key={booking.id} className="border-b hover:bg-gray-50">
+                        <td className="px-4 py-4 font-medium">{booking.customer_name}</td>
+                        <td className="px-4 py-4">{booking.service}</td>
+                        <td className="px-4 py-4">{format(new Date(booking.starts_at), 'yyyy-MM-dd')}</td>
+                        <td className="px-4 py-4">{format(new Date(booking.starts_at), 'h:mm a')}</td>
+                        <td className="px-4 py-4">
+                          {getStatusBadge(booking.status)}
+                        </td>
+                        <td className="px-4 py-4">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <MoreHorizontal size={16} />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              <DropdownMenuItem onClick={() => handleEditBooking(booking)}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => confirmDeleteBooking(booking.id)}
+                                className="text-red-600"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
         ) : (
           <div className="dashboard-card">
-            <div className="flex justify-between items-center mb-4">
-              <h2>Weekly Calendar</h2>
+            <div className="flex justify-between items-center mb-4 p-4">
+              <h2 className="text-lg font-semibold">Weekly Calendar</h2>
               <div className="flex items-center space-x-3">
-                <button className="p-1 rounded-md hover:bg-gray-100">
-                  <ChevronLeft size={20} />
-                </button>
-                <span className="text-sm font-medium">{currentWeek}</span>
-                <button className="p-1 rounded-md hover:bg-gray-100">
-                  <ChevronRight size={20} />
-                </button>
+                <Button variant="outline" size="sm" onClick={handlePreviousWeek}>
+                  <ChevronLeft size={16} />
+                </Button>
+                <span className="text-sm font-medium">{formattedWeek}</span>
+                <Button variant="outline" size="sm" onClick={handleNextWeek}>
+                  <ChevronRight size={16} />
+                </Button>
               </div>
             </div>
             
@@ -141,16 +290,26 @@ const Bookings = () => {
                     <div key={time} className="grid grid-cols-8 border-b">
                       <div className="py-3 px-2 text-xs text-gray-500">{time}</div>
                       {days.map((day) => {
-                        const event = calendarEvents.find(e => e.day === day && e.time === time);
+                        const eventsForDayAndTime = currentWeekBookings.filter(booking => 
+                          getDayFromDate(booking.starts_at) === day && 
+                          getTimeFromDate(booking.starts_at) === time
+                        );
+                        
                         return (
-                          <div key={`${day}-${time}`} className="py-3 px-2 relative">
-                            {event ? (
-                              <div className="absolute top-1 left-1 right-1 bg-primary/20 border-l-4 border-primary rounded-md p-2 shadow-sm text-xs">
-                                <p className="font-medium">{event.client}</p>
-                                <p className="text-gray-600">{event.service}</p>
-                              </div>
+                          <div key={`${day}-${time}`} className="py-3 px-2 relative min-h-[60px]">
+                            {eventsForDayAndTime.length > 0 ? (
+                              eventsForDayAndTime.map(event => (
+                                <div 
+                                  key={event.id}
+                                  className="absolute top-1 left-1 right-1 bg-primary/20 border-l-4 border-primary rounded-md p-2 shadow-sm text-xs cursor-pointer"
+                                  onClick={() => handleEditBooking(event)}
+                                >
+                                  <p className="font-medium">{event.customer_name}</p>
+                                  <p className="text-gray-600">{event.service}</p>
+                                </div>
+                              ))
                             ) : (
-                              <div className="h-10 border border-dashed border-gray-200 rounded-md"></div>
+                              <div className="h-full w-full border border-dashed border-gray-200 rounded-md" />
                             )}
                           </div>
                         );
@@ -163,6 +322,39 @@ const Bookings = () => {
           </div>
         )}
       </div>
+
+      {/* Booking Creation/Edit Dialog */}
+      <Dialog open={isCreating || isEditing} onOpenChange={handleCloseModals}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>{currentBooking ? 'Edit Booking' : 'Create New Booking'}</DialogTitle>
+          </DialogHeader>
+          <BookingForm
+            initialData={currentBooking || {}}
+            onSubmit={handleSubmitBooking}
+            onCancel={handleCloseModals}
+            isSubmitting={submitting}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the booking.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteBooking} className="bg-red-600 hover:bg-red-700">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 };

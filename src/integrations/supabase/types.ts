@@ -9,7 +9,97 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      bookings: {
+        Row: {
+          business_id: string | null
+          created_at: string | null
+          customer_name: string | null
+          ends_at: string | null
+          id: string
+          notes: string | null
+          starts_at: string | null
+          status: string | null
+        }
+        Insert: {
+          business_id?: string | null
+          created_at?: string | null
+          customer_name?: string | null
+          ends_at?: string | null
+          id?: string
+          notes?: string | null
+          starts_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          business_id?: string | null
+          created_at?: string | null
+          customer_name?: string | null
+          ends_at?: string | null
+          id?: string
+          notes?: string | null
+          starts_at?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      businesses: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          business_id: string | null
+          created_at: string | null
+          full_name: string | null
+          id: string
+          role: string | null
+        }
+        Insert: {
+          business_id?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          id?: string
+          role?: string | null
+        }
+        Update: {
+          business_id?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          id?: string
+          role?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
