@@ -2,11 +2,23 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/hooks/use-toast';
-import type { Tables } from '@/integrations/supabase/types';
+import { Customer } from '@/hooks/useCustomers';
 
-export type Invoice = Tables['invoices']['Row'] & { 
-  customers?: Pick<Tables['customers']['Row'], 'full_name' | 'email'> 
+export type Invoice = {
+  id: string;
+  business_id: string;
+  customer_id?: string | null;
+  amount_cents: number;
+  currency: string;
+  status: 'draft' | 'sent' | 'paid' | 'overdue';
+  stripe_checkout_session_id?: string | null;
+  stripe_checkout_url?: string | null;
+  pdf_url?: string | null;
+  due_date?: string | null;
+  created_at: string;
+  customers?: Pick<Customer, 'full_name' | 'email'>;
 };
+
 export type InvoiceInput = Omit<Invoice, 'id' | 'created_at' | 'customers'>;
 
 export function useInvoices(businessId: string | null) {

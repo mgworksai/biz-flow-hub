@@ -2,9 +2,17 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/hooks/use-toast';
-import type { Tables } from '@/integrations/supabase/types';
 
-export type Customer = Tables['customers']['Row'];
+export type Customer = {
+  id: string;
+  business_id: string;
+  full_name: string;
+  email?: string | null;
+  phone?: string | null;
+  notes?: string | null;
+  created_at?: string;
+};
+
 export type CustomerInput = Omit<Customer, 'id' | 'created_at'>;
 
 export function useCustomers(businessId: string | null) {
