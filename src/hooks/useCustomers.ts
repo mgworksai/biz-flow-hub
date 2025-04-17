@@ -2,24 +2,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/hooks/use-toast';
+import type { Tables } from '@/integrations/supabase/types';
 
-export type Customer = {
-  id: string;
-  business_id: string;
-  full_name: string;
-  email?: string;
-  phone?: string;
-  notes?: string;
-  created_at: string;
-};
-
-export type CustomerInput = {
-  business_id: string;
-  full_name: string;
-  email?: string;
-  phone?: string;
-  notes?: string;
-};
+export type Customer = Tables['customers']['Row'];
+export type CustomerInput = Omit<Customer, 'id' | 'created_at'>;
 
 export function useCustomers(businessId: string | null) {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -34,7 +20,6 @@ export function useCustomers(businessId: string | null) {
     
     setLoading(true);
     
-    // Set up initial data fetch
     const fetchCustomers = async () => {
       try {
         const { data, error } = await supabase
@@ -44,7 +29,7 @@ export function useCustomers(businessId: string | null) {
           .order('full_name', { ascending: true });
         
         if (error) throw error;
-        setCustomers(data as Customer[]);
+        setCustomers(data ?? []);
       } catch (err: any) {
         setError(err);
         toast({
@@ -59,7 +44,6 @@ export function useCustomers(businessId: string | null) {
 
     fetchCustomers();
 
-    // Set up realtime subscription
     const channel = supabase
       .channel('customers_channel')
       .on('postgres_changes', {
@@ -75,12 +59,14 @@ export function useCustomers(businessId: string | null) {
         } else if (eventType === 'UPDATE') {
           setCustomers(current => 
             current.map(customer => 
-              customer.id === oldCustomer.id ? { ...customer, ...newCustomer } as Customer : customer
+              customer.id === (oldCustomer as Customer).id 
+                ? { ...customer, ...(newCustomer as Customer) } 
+                : customer
             )
           );
         } else if (eventType === 'DELETE') {
           setCustomers(current => 
-            current.filter(customer => customer.id !== oldCustomer.id)
+            current.filter(customer => customer.id !== (oldCustomer as Customer).id)
           );
         }
       })
