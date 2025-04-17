@@ -49,7 +49,7 @@ export function useInvoices(businessId: string | null) {
           .order('created_at', { ascending: false });
         
         if (error) throw error;
-        setInvoices(data ?? []);
+        setInvoices(data as Invoice[] ?? []);
       } catch (err: any) {
         setError(err);
         toast({

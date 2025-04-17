@@ -37,7 +37,7 @@ export function useCustomers(businessId: string | null) {
           .order('full_name', { ascending: true });
         
         if (error) throw error;
-        setCustomers(data ?? []);
+        setCustomers(data as Customer[] ?? []);
       } catch (err: any) {
         setError(err);
         toast({
