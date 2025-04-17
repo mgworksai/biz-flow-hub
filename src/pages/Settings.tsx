@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import { Save, User, Users, Bell, Shield, Building, CreditCard, Mail, Phone } from 'lucide-react';
@@ -5,13 +6,17 @@ import { Save, User, Users, Bell, Shield, Building, CreditCard, Mail, Phone } fr
 interface SettingsTabProps {
   children: React.ReactNode;
   active: boolean;
+  onClick?: () => void; // Added onClick as an optional property
 }
 
-const SettingsTab: React.FC<SettingsTabProps> = ({ children, active }) => {
+const SettingsTab: React.FC<SettingsTabProps> = ({ children, active, onClick }) => {
   return (
-    <div className={`py-3 px-4 text-sm font-medium cursor-pointer ${
-      active ? 'text-primary border-b-2 border-primary' : 'text-gray-600 hover:text-gray-900'
-    }`}>
+    <div 
+      className={`py-3 px-4 text-sm font-medium cursor-pointer ${
+        active ? 'text-primary border-b-2 border-primary' : 'text-gray-600 hover:text-gray-900'
+      }`}
+      onClick={onClick}
+    >
       {children}
     </div>
   );
