@@ -15,7 +15,15 @@ export type Booking = {
   business_id?: string;
 };
 
-export type BookingInput = Omit<Booking, 'id' | 'created_at'>;
+export type BookingInput = {
+  customer_name: string;
+  service: string;
+  status: 'scheduled' | 'confirmed' | 'cancelled' | 'completed' | 'pending';
+  notes?: string;
+  starts_at: string;
+  ends_at?: string;
+  business_id?: string;
+};
 
 export function useBookings(businessId?: string) {
   const [bookings, setBookings] = useState<Booking[]>([]);

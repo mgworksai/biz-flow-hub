@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { format } from "date-fns";
-import { CalendarIcon, Clock } from "lucide-react";
+import { CalendarIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -46,7 +46,7 @@ const bookingFormSchema = z.object({
 type BookingFormValues = z.infer<typeof bookingFormSchema>;
 
 interface BookingFormProps {
-  initialData?: Partial<BookingInput>;
+  initialData?: Partial<BookingInput> & { id?: string };
   onSubmit: (data: BookingInput) => Promise<void>;
   onCancel: () => void;
   isSubmitting?: boolean;
@@ -95,9 +95,13 @@ const BookingForm: React.FC<BookingFormProps> = ({
     try {
       // Convert dates to ISO strings for the API
       const bookingData: BookingInput = {
-        ...values,
+        customer_name: values.customer_name,
+        service: values.service,
+        status: values.status,
+        notes: values.notes,
         starts_at: values.starts_at.toISOString(),
         ends_at: values.ends_at ? values.ends_at.toISOString() : undefined,
+        business_id: values.business_id,
       };
       
       await onSubmit(bookingData);
